@@ -1,6 +1,7 @@
 #include <cstdlib>
 #include <cassert>
 
+// < > ==
 template <typename Key>
 class RBTree {
 private:
@@ -8,10 +9,9 @@ private:
     using Node::Red;
     using Node::Black;
 
-    static const Node *nil = Node(0, nullptr, nullptr, nullptr, Black);
-
 public:
-    explicit RBTree() {};
+    RBTree(): nil(0, Black), root(&nil) {};
+
     RBTree(const RBTree&) = delete;
     RBTree& operator=(const RBTree&) = delete;
 
@@ -21,39 +21,62 @@ public:
 
 private:
     Node* root;
+    Node nil;
 
     Node* FindEqOrLast(const Key& key);
     void LeftRotate(Node *x);
     void RightRotate(Node *y);
     void InsertFixup(Node *z);
     void DeleteFixup(Node *z);
+
+    bool NodeHasKey(Node* node, const Key& key) {
+        return node != &nil && node->key == key;
+    }
+
+    void ReplaceTree(Node* node, Node* rep) {
+         if (node->parent == &nil) {
+            root = rep;
+         } else if (node == node->parent->left) {
+            node->parent->left = rep;
+         } else {
+            node->parent->right = rep;
+         }
+         rep->parent = node->parent;
+    }
+
+    Node* Minimum(Node* node) {
+        while(node->left != &nil) {
+            node = node->left;
+        }
+        return node;
+    }
 };
 
 
 template <typename Key>
 struct RBTree<Key>::Node {
 public:
-    enum Color { Black = 1, Red } ;
+    enum Color { Black = 1, Red };
 
-    Node(Key& k, Node* l, Node* r, Node* p, Color c):
-        key(k), left(l), right(r), parent(p), color(c) {}
+    Node(Key& k, Color c): 
+        key(k), color(c), left(this), right(this), parent(this) {}
+    Node(Key& k, Node* l, Node* r, Node* p, Color c): 
+        key(k), color(c), left(l), right(r), parent(p) {}
 
     Color color;
     Key const key;
     Node *left, *right, *parent;
 };
 
-// x.key < y.key
 template <typename Key>
 void RBTree<Key>::Insert(const Key& key) {
     Node* y = FindEqOrLast(key);
-
-    if (y != nil && y->key == key) {
+    if (NodeHasKey(y, key)) {
         return;
     }
 
-    Node* z = new Node(key, nil, nil, y, Red);
-    if (y == nil) {
+    Node* z = new Node(key, &nil, &nil, y, Red);
+    if (y == &nil) {
         root = z;
     } else if (z->key < y->key) {
         y->left = z;
@@ -61,20 +84,21 @@ void RBTree<Key>::Insert(const Key& key) {
         y->right = z;
     }
 
-    // z = { left: nil, right: nil, parent: y }
+    // z = { left: &nil, right: &nil, parent: y }
+    // if (z == &nil) { return; }
     InsertFixup(z);
 }
 
 
 template <typename Key>
 void RBTree<Key>::InsertFixup(Node *z) {
-    // z != nil
+    // z != &nil
     while (z->parent->color == Red) {
-        Node* y;
+        Node* unc;
         if (z->parent == z->parent->parent->left) {
-            y = z->parent->parent->right;
-            if (y->color == Red) {
-                y->color = Black;
+            unc = z->parent->parent->right;
+            if (unc->color == Red) {
+                unc->color = Black;
                 z->parent->color = Black;
                 z->parent->parent = Red;
                 z = z->parent->parent;
@@ -86,9 +110,9 @@ void RBTree<Key>::InsertFixup(Node *z) {
             z->parent->parent->color = Red;
             RightRotate(z->parent->parent);
         } else {
-            y = z->parent->parent->left;
-            if (y->color == Red) {
-                y->color = Black;
+            unc = z->parent->parent->left;
+            if (unc->color == Red) {
+                unc->color = Black;
                 z->parent->color = Black;
                 z->parent->parent->color = Black;
                 z = z->parent->parent;
@@ -111,7 +135,7 @@ void RBTree<Key>::LeftRotate(Node *x) {
     assert(y);
 
     x->right = y->left;
-    if (y->left != nil) {
+    if (y->left != &nil) {
         y->left->parent = x;
     }
 
@@ -135,7 +159,7 @@ void RBTree<Key>::RightRotate(Node *y) {
     assert(x);
 
     y->left = x->right;
-    if (x->right != nil) {
+    if (x->right != &nil) {
         x->right->parent = y;
     }
 
@@ -157,8 +181,8 @@ template <typename Key>
 typename RBTree<Key>::Node*
 RBTree<Key>::FindEqOrLast(const Key& key) {
     Node* x = root;
-    Node* p = nil;
-    while (x != nil) {
+    Node* p = &nil;
+    while (x != &nil) {
         if (x->key < key) {
             x = x->left;
         } else if (x->key > key) {
@@ -174,21 +198,53 @@ RBTree<Key>::FindEqOrLast(const Key& key) {
 template <typename Key>
 bool RBTree<Key>::Contains(const Key& key) {
     Node *x = FindEqOrLast(key);
-    return x != nil && x->key == key;
+    return NodeHasKey(x, key);
 }
 
+
+template <typename Key>
+void RBTree<Key>::Delete(const Key& key) {
+    Node* del = FindEqOrLast(key);
+    if (!NodeHasKey(del, key)) {
+        return; 
+    }
+
+    Node* succ = del;
+    auto raw_color = succ->color;
+
+    Node* fix;
+    if (del->left == &nil) {
+        fix = del->left;
+        ReplaceTree(del, del->right);
+    } else if (del->right == &nil) {
+        fix = del->right;
+        ReplaceTree(del, del->left);
+    } else {
+        succ = Minimum(del->right);
+        raw_color = succ->color;
+        fix = succ->right;
+
+        if (succ->parent == del) {
+            fix->parent = succ;
+        } else {
+            ReplaceTree(succ, succ->right);
+            succ->right = del->right;
+            succ->right->parent = succ;
+        }
+
+        ReplaceTree(del, succ);
+        succ->left = del->left;
+        succ->left->parent = succ;
+        succ->color = del->color;
+    }
+
+    if (raw_color == Black) {
+        DeleteFixup(fix);
+    }
+}
 
 // TODO
 template <typename Key>
-void RBTree<Key>::Delete(const Key& key)
-{
+void RBTree<Key>::DeleteFixup(Node *z) {
 
 }
-
-// TODO
-template <typename Key>
-void RBTree<Key>::DeleteFixup(Node *z)
-{
-
-}
-
