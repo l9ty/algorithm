@@ -33,7 +33,7 @@ private:
 template <typename Key>
 struct RBTree<Key>::Node {
 public:
-    enum Color { Black = 1, Red} ;
+    enum Color { Black = 1, Red } ;
 
     Node(Key& k, Node* l, Node* r, Node* p, Color c):
         key(k), left(l), right(r), parent(p), color(c) {}
@@ -68,6 +68,7 @@ void RBTree<Key>::Insert(const Key& key) {
 
 template <typename Key>
 void RBTree<Key>::InsertFixup(Node *z) {
+    // z != nil
     while (z->parent->color == Red) {
         Node* y;
         if (z->parent == z->parent->parent->left) {
@@ -78,6 +79,7 @@ void RBTree<Key>::InsertFixup(Node *z) {
                 z->parent->parent = Red;
                 z = z->parent->parent;
             } else if (z == z->parent->right) {
+                // z = z->parent;
                 LeftRotate(z);
             }
             z->parent->color = Black;
@@ -87,14 +89,16 @@ void RBTree<Key>::InsertFixup(Node *z) {
             y = z->parent->parent->left;
             if (y->color == Red) {
                 y->color = Black;
-                y->parent->color = Black;
-                y->parent->parent->color = Black;
+                z->parent->color = Black;
+                z->parent->parent->color = Black;
                 z = z->parent->parent;
             } else if (z == z->parent->left) {
+                // z = z->parent;
                 RightRotate(z);
             }
             z->parent->color = Black;
             z->parent->parent->color = Red;
+            LeftRotate(z->parent->parent);
         }
     }
     root->color = Black;
