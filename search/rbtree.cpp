@@ -58,9 +58,9 @@ struct RBTree<Key>::Node {
 public:
     enum Color { Black = 1, Red };
 
-    Node(Key& k, Color c): 
+    Node(Key& k, Color c):
         key(k), color(c), left(this), right(this), parent(this) {}
-    Node(Key& k, Node* l, Node* r, Node* p, Color c): 
+    Node(Key& k, Node* l, Node* r, Node* p, Color c):
         key(k), color(c), left(l), right(r), parent(p) {}
 
     Color color;
@@ -70,61 +70,68 @@ public:
 
 template <typename Key>
 void RBTree<Key>::Insert(const Key& key) {
-    Node* y = FindEqOrLast(key);
-    if (NodeHasKey(y, key)) {
+    Node* last = FindEqOrLast(key);
+    if (NodeHasKey(last, key)) {
         return;
     }
 
-    Node* z = new Node(key, &nil, &nil, y, Red);
-    if (y == &nil) {
-        root = z;
-    } else if (z->key < y->key) {
-        y->left = z;
+    Node* node = new Node(key, &nil, &nil, last, Red);
+    if (last == &nil) {
+        root = node;
+    } else if (node->key < last->key) {
+        last->left = node;
     } else {
-        y->right = z;
+        last->right = node;
     }
 
-    // z = { left: &nil, right: &nil, parent: y }
-    // if (z == &nil) { return; }
-    InsertFixup(z);
+    // node = { left: &nil, right: &nil, parent: last, color: Red}
+    InsertFixup(node);
 }
 
 
 template <typename Key>
-void RBTree<Key>::InsertFixup(Node *z) {
-    // z != &nil
-    while (z->parent->color == Red) {
+void RBTree<Key>::InsertFixup(Node *fix) {
+    // fix != &nil
+    while (fix->parent->color == Red) {
         Node* unc;
-        if (z->parent == z->parent->parent->left) {
-            unc = z->parent->parent->right;
+
+        if (fix->parent == fix->parent->parent->left) {
+            unc = fix->parent->parent->right;
+
             if (unc->color == Red) {
                 unc->color = Black;
-                z->parent->color = Black;
-                z->parent->parent = Red;
-                z = z->parent->parent;
-            } else if (z == z->parent->right) {
-                // z = z->parent;
-                LeftRotate(z);
+                fix->parent->color = Black;
+                fix->parent->parent = Red;
+                fix = fix->parent->parent;
+
+            } else if (fix == fix->parent->right) {
+                fix = fix->parent;
+                LeftRotate(fix);
             }
-            z->parent->color = Black;
-            z->parent->parent->color = Red;
-            RightRotate(z->parent->parent);
+
+            fix->parent->color = Black;
+            fix->parent->parent->color = Red;
+            RightRotate(fix->parent->parent);
         } else {
-            unc = z->parent->parent->left;
+            unc = fix->parent->parent->left;
+
             if (unc->color == Red) {
                 unc->color = Black;
-                z->parent->color = Black;
-                z->parent->parent->color = Black;
-                z = z->parent->parent;
-            } else if (z == z->parent->left) {
-                // z = z->parent;
-                RightRotate(z);
+                fix->parent->color = Black;
+                fix->parent->parent->color = Black;
+                fix = fix->parent->parent;
+
+            } else if (fix == fix->parent->left) {
+                // fix = fix->parent;
+                RightRotate(fix);
             }
-            z->parent->color = Black;
-            z->parent->parent->color = Red;
-            LeftRotate(z->parent->parent);
+
+            fix->parent->color = Black;
+            fix->parent->parent->color = Red;
+            LeftRotate(fix->parent->parent);
         }
     }
+
     root->color = Black;
 }
 
@@ -180,20 +187,21 @@ void RBTree<Key>::RightRotate(Node *y) {
 template <typename Key>
 typename RBTree<Key>::Node*
 RBTree<Key>::FindEqOrLast(const Key& key) {
-    Node* x = root;
+    Node* n = root;
     Node* p = &nil;
-    while (x != &nil) {
-        if (x->key < key) {
-            x = x->left;
-        } else if (x->key > key) {
-            x = x->right;
+    while (n != &nil) {
+        if (n->key < key) {
+            n = n->left;
+        } else if (n->key > key) {
+            n = n->right;
         } else {
-            return x;
+            return n;
         }
     }
 
     return p;
 }
+
 
 template <typename Key>
 bool RBTree<Key>::Contains(const Key& key) {
@@ -206,7 +214,7 @@ template <typename Key>
 void RBTree<Key>::Delete(const Key& key) {
     Node* del = FindEqOrLast(key);
     if (!NodeHasKey(del, key)) {
-        return; 
+        return;
     }
 
     Node* succ = del;
@@ -214,11 +222,11 @@ void RBTree<Key>::Delete(const Key& key) {
 
     Node* fix;
     if (del->left == &nil) {
-        fix = del->left;
-        ReplaceTree(del, del->right);
-    } else if (del->right == &nil) {
         fix = del->right;
-        ReplaceTree(del, del->left);
+        ReplaceTree(del, fix);
+    } else if (del->right == &nil) {
+        fix = del->left;
+        ReplaceTree(del, fix);
     } else {
         succ = Minimum(del->right);
         raw_color = succ->color;
@@ -243,8 +251,71 @@ void RBTree<Key>::Delete(const Key& key) {
     }
 }
 
-// TODO
 template <typename Key>
-void RBTree<Key>::DeleteFixup(Node *z) {
+void RBTree<Key>::DeleteFixup(Node *fix) {
+    while (fix != &nil && fix->color == Black) {
+        Node* bro;
 
+        if (fix = fix->parent->left) {
+            bro = fix->parent->right;
+
+            if (bro->color == Red) {
+                bro->color = Black;
+                fix->parent->color = Red;
+                LeftRotate(fix->parent);
+                bro = fix->parent->right;
+            }
+
+            if (bro->left->color == Black &&
+                bro->right->color == Black) {
+
+                bro->color = Red;
+                fix = fix->parent;
+            } else {
+                if (bro->right->color == Black) {
+                    bro->left->color = Red;
+                    bro->color = Black;
+                    RightRotate(bro);
+                    bro = fix->parent->right;
+                }
+
+                bro->color = fix->parent->color;
+                fix->parent->color = Black;
+                bro->right->color = Black;
+                LeftRotate(fix->parent);
+                fix = root;
+            }
+        } else {
+            bro = fix->parent->left;
+
+            if (bro->color == Red) {
+                bro->color = Black;
+                fix->parent->color = Red;
+                RightRotate(fix->parent);
+                bro = fix->parent->left;
+            }
+
+            if (bro->left->color == Black &&
+                bro->right->color == Black) {
+
+                bro->color = Red;
+                fix = fix->parent;
+            } else {
+                if (bro->left->color == Black) {
+                    bro->right->color = Black;
+                    bro->color = Red;
+                    LeftRotate(bro);
+                    bro = fix->parent->left;
+                }
+
+                bro->color = fix->parent->color;
+                fix->parent->color = Black;
+                bro->left->Color = Black;
+                RightRotate(fix->parent);
+                fix = root;
+            }
+        }
+    }
+
+    fix->color = Black;
 }
